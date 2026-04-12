@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Verhuisapp — Locatie</title>
+<style>
+:root {
+  --navy: #1a1a2e; --navy-light: #252547; --accent: #4f8ef7;
+  --green: #0f6e56; --green-bg: #e1f5ee; --green-text: #085041;
+  --blue: #185FA5; --blue-bg: #e6f1fb; --blue-text: #042C53;
+  --amber: #854f0b; --amber-bg: #faeeda; --amber-text: #633806;
+  --red: #a32d2d; --red-bg: #fcebeb;
+  --border: #e2e2e2; --bg: #f7f8fa; --white: #ffffff;
+  --text: #111111; --muted: #666666;
+  --radius: 10px; --radius-sm: 6px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, 'Helvetica Neue', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+.sync-banner { display: none; background: var(--navy-light); color: white; padding: 10px 16px; font-size: 14px; align-items: center; gap: 10px; }
+.sync-banner.show { display: flex; }
+.sync-banner.ok { background: #0f6e56; }
+.sync-banner.err { background: #a32d2d; }
+.spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.topbar { background: var(--navy); color: white; padding: 16px 18px 14px; position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+.topbar h1 { font-size: 20px; font-weight: 700; }
+.context-pill { background: rgba(255,255,255,.15); border-radius: 20px; padding: 5px 14px; font-size: 13px; font-weight: 600; }
+
+.tabs { display: flex; background: var(--white); border-bottom: 2px solid var(--border); }
+.tab { flex: 1; padding: 14px 6px; font-size: 15px; font-weight: 600; color: var(--muted); text-align: center; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s; }
+.tab.active { color: var(--navy); border-bottom-color: var(--navy); }
+
+.screen { display: none; padding: 14px 14px 100px; }
+.screen.active { display: block; }
+
+.card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; margin-bottom: 12px; }
+.card-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+
+/* Stap-indicator */
+.steps { display: flex; flex-direction: column; gap: 0; margin-bottom: 12px; background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+.step-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.step-row:last-child { border-bottom: none; }
+.step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.step-num.done { background: var(--green-bg); color: var(--green); }
+.step-num.active { background: var(--blue-bg); color: var(--blue); }
+.step-num.todo { background: var(--bg); color: var(--muted); }
+.step-info { flex: 1; }
+.step-label { font-size: 15px; font-weight: 600; color: var(--text); }
+.step-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.step-badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 6px; background: var(--blue-bg); color: var(--blue-text); }
+
+/* Scan-sectie */
+.scan-area { background: var(--bg); border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 18px 16px; text-align: center; margin-bottom: 12px; }
+.scan-icon { font-size: 32px; margin-bottom: 8px; }
+.scan-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.scan-sub { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.scan-divider { display: flex; align-items: center; gap: 10px; margin: 12px 0; color: var(--muted); font-size: 12px; }
+.scan-divider::before, .scan-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Raster */
+.grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.grid-container { display: inline-grid; gap: 5px; padding: 4px; }
+.grid-cell { border: 1.5px solid var(--border); border-radius: 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: background .12s, border-color .12s; min-width: 48px; min-height: 48px; }
+.grid-cell .cell-coord { font-size: 12px; font-weight: 700; color: var(--muted); }
+.grid-cell .cell-doos { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.grid-cell.vrij { background: var(--white); }
+.grid-cell.vrij:active { background: var(--blue-bg); border-color: var(--accent); }
+.grid-cell.selected { background: var(--blue-bg); border-color: var(--blue); }
+.grid-cell.selected .cell-coord { color: var(--blue-text); }
+.grid-cell.bezet { background: var(--bg); cursor: default; opacity: .65; }
+.grid-cell.bezet .cell-coord { color: var(--muted); }
+.grid-legend { display: flex; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* Knoppen */
+.btn-primary { background: var(--navy); color: white; border: none; border-radius: var(--radius); padding: 18px; font-size: 18px; font-weight: 700; width: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-primary:active { opacity: .85; }
+.btn-primary:disabled { opacity: .4; cursor: default; }
+.btn-secondary { background: var(--white); color: var(--text); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 14px; font-size: 15px; font-weight: 600; width: 100%; cursor: pointer; margin-top: 8px; }
+.btn-secondary:active { opacity: .85; }
+.btn-print { background: var(--navy); color: white; border: none; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 14px; font-weight: 700; cursor: pointer; }
+
+/* Formulier */
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+select, input[type=text], input[type=number] { width: 100%; font-size: 17px; color: var(--text); background: var(--white); border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; appearance: none; }
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Kamerlijst */
+.kamer-wrap { margin-bottom: 10px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.kamer-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: var(--white); cursor: pointer; }
+.kamer-item:active { background: var(--blue-bg); }
+.kamer-detail { display: none; background: var(--bg); padding: 12px 14px; border-top: 1px solid var(--border); }
+.kamer-detail.open { display: block; }
+.kamer-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.kamer-raster-wrap { overflow-x: auto; }
+.kamer-naam { font-size: 17px; font-weight: 700; color: var(--text); }
+.kamer-meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.kbadge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; background: var(--green-bg); color: var(--green-text); }
+.kbadge-warn { background: var(--amber-bg); color: var(--amber-text); }
+
+/* Zoekresultaat */
+.result-card { background: var(--blue-bg); border: 1.5px solid #85B7EB; border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.result-nr { font-size: 28px; font-weight: 900; color: var(--navy); margin-bottom: 8px; }
+.result-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(0,0,0,.07); font-size: 15px; }
+.result-row:last-child { border-bottom: none; }
+.result-lbl { color: var(--blue); font-weight: 500; }
+.result-val { font-weight: 700; color: var(--blue-text); }
+.result-pos { font-size: 36px; font-weight: 900; color: var(--navy); }
+
+.not-found { background: var(--amber-bg); border: 1px solid #f0d060; border-radius: var(--radius); padding: 16px; color: var(--amber-text); font-size: 15px; margin-bottom: 12px; }
+
+.success-banner { background: var(--green); color: white; padding: 14px 18px; font-size: 16px; font-weight: 700; display: none; }
+.success-banner.show { display: block; }
+
+/* Overzichtsraster in zoeken */
+.overview-grid-wrap { overflow-x: auto; margin-bottom: 12px; }
+.overview-cell { border: 1px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: 10px; }
+.overview-cell.hit { background: var(--blue-bg); border-color: var(--blue); }
+.overview-cell.hit .oc-coord { font-weight: 700; color: var(--blue-text); font-size: 11px; }
+.overview-cell.hit .oc-nr { color: var(--blue); font-size: 9px; }
+.overview-cell.leeg .oc-coord { color: var(--muted); font-size: 10px; }
+.oc-coord { font-weight: 600; }
+.oc-nr { margin-top: 1px; }
+
+/* Doos-lijst in zoeken */
+.doos-item { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.doos-item:active { border-color: var(--accent); }
+.doos-nr { font-size: 22px; font-weight: 900; color: var(--navy); min-width: 56px; }
+.doos-meta { flex: 1; }
+.doos-kamers { font-size: 15px; font-weight: 600; }
+.doos-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.loc-badge { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: var(--blue-bg); color: var(--blue-text); white-space: nowrap; }
+.no-loc-badge { font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 6px; background: var(--amber-bg); color: var(--amber-text); white-space: nowrap; }
+
+.search-bar { display: flex; gap: 10px; margin-bottom: 12px; }
+.search-bar input { flex: 1; font-size: 16px; padding: 13px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: var(--white); color: var(--text); }
+.search-bar input:focus { outline: none; border-color: var(--accent); }
+
+.empty-state { text-align: center; color: var(--muted); padding: 50px 20px; font-size: 16px; }
+.hint { font-size: 13px; color: var(--muted); text-align: center; padding: 6px 0 12px; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; align-items: flex-end; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--white); border-radius: 20px 20px 0 0; width: 100%; max-height: 92vh; overflow-y: auto; padding: 0 0 40px; }
+.modal-handle { width: 40px; height: 5px; background: var(--border); border-radius: 3px; margin: 12px auto 16px; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 0 18px 14px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.modal-title { font-size: 20px; font-weight: 900; color: var(--navy); }
+.modal-close { width: 36px; height: 36px; border-radius: 50%; background: var(--bg); border: none; font-size: 18px; cursor: pointer; color: var(--text); }
+.modal-body { padding: 0 18px; }
+
+/* Print */
+@media print {
+  body > *:not(#print-area) { display: none !important; }
+  #print-area { display: block !important; }
+}
+#print-area { display: none; }
+.print-page { width: 210mm; min-height: 297mm; padding: 15mm; font-family: Arial, sans-serif; color: #000; page-break-after: always; }
+.print-kamer-title { font-size: 22pt; font-weight: 900; border-bottom: 2pt solid #000; padding-bottom: 6pt; margin-bottom: 10pt; }
+.print-grid { display: inline-grid; gap: 4px; margin-bottom: 12pt; }
+.print-cell { border: 1pt solid #999; width: 22mm; height: 22mm; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 8pt; border-radius: 2pt; }
+.print-cell .pc-coord { font-size: 11pt; font-weight: 900; }
+.print-cell .pc-nr { font-size: 7pt; color: #555; margin-top: 2pt; }
+.print-cell.bezet { background: #e6f1fb; }
+.print-cell.leeg { background: #fafafa; color: #aaa; }
+.print-table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 8pt; }
+.print-table th { background: #1a1a2e; color: white; padding: 5pt 7pt; text-align: left; font-size: 8pt; }
+.print-table td { padding: 5pt 7pt; border-bottom: 0.5pt solid #ddd; }
+.print-table tr:nth-child(even) td { background: #f5f5f5; }
+.print-qr-label { width: 103mm; height: 164mm; padding: 8mm; font-family: Arial, sans-serif; color: #000; display: flex; flex-direction: column; }
+@page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="sync-banner" id="sync-banner">
+  <div class="spinner" id="sync-spinner"></div>
+  <span id="sync-msg">Verbinden met Google Sheets...</span>
+</div>
+<div class="success-banner" id="success-banner"></div>
+
+<div class="topbar">
+  <h1 id="screen-title">Locatie-app</h1>
+  <span class="context-pill" id="context-pill"></span>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showScreen('kamers')" id="tab-kamers">📋 Kamers</div>
+  <div class="tab" onclick="showScreen('plaatsen')" id="tab-plaatsen">📦 Plaatsen</div>
+  <div class="tab" onclick="showScreen('zoeken')" id="tab-zoeken">🔍 Zoeken</div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SCHERM 1: KAMERS                                             -->
+<!-- ============================================================ -->
+<div class="screen active" id="screen-kamers">
+
+  <div id="kamer-lijst-view">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <span style="font-size:14px; color:var(--muted);" id="kamer-count">Laden...</span>
+      <button class="btn-print" onclick="showKamerForm(null)">+ Nieuwe kamer</button>
+    </div>
+    <div id="kamer-lijst"></div>
+    <div class="empty-state" id="kamer-empty" style="display:none;">Nog geen kamers aangemaakt.<br>Tik '+ Nieuwe kamer' om te beginnen.</div>
+  </div>
+
+  <div id="kamer-form-view" style="display:none;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <button onclick="showKamerLijst()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text);">←</button>
+      <span style="font-size:18px; font-weight:700;" id="kamer-form-title">Nieuwe kamer</span>
+    </div>
+    <div class="card">
+      <div class="card-title">Kamernaam</div>
+      <div class="field" style="margin:0;">
+        <input type="text" id="inp-kamernaam" placeholder="bijv. Woonkamer, Kelder...">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Rastergrootte</div>
+      <div class="row2">
+        <div class="field" style="margin:0;">
+          <label>Kolommen (A–Z)</label>
+          <input type="number" id="inp-cols" min="1" max="26" value="4" oninput="updateGridPreview()">
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Rijen (1–99)</label>
+          <input type="number" id="inp-rows" min="1" max="99" value="5" oninput="updateGridPreview()">
+        </div>
+      </div>
+      <div class="field" style="margin-top:12px;margin-bottom:0;">
+        <label>Max lagen per cel (stapelhoogte)</label>
+        <input type="number" id="inp-lagen" min="1" max="10" value="1" style="max-width:100px;">
+      </div>
+      <div style="margin-top:14px;">
+        <div class="card-title">Voorbeeld</div>
+        <div class="grid-wrap">
+          <div class="grid-container" id="grid-preview"></div>
+        </div>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveKamer()" id="btn-save-kamer">
+      Opslaan &amp; QR genereren
+    </button>
+    <button class="btn-secondary" id="btn-print-kamer" style="display:none;" onclick="printKamerLabel()">
+      Kamer-label printen (A4)
+    </button>
+    <div class="hint" id="kamer-form-hint"></div>
+  </div>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- SCHERM 2: PLAATSEN                                           -->
+<!-- ============================================================ -->
+<div class="screen" id="screen-plaatsen">
+
+  <div class="steps" id="place-steps">
+    <div class="step-row" id="step1-row">
+      <div class="step-num active" id="step1-num">1</div>
+      <div class="step-info">
+        <div class="step-label">Doos scannen</div>
+        <div class="step-sub" id="step1-sub">Scan de QR-code op de doos via Camera-app</div>
+      </div>
+      <span class="step-badge" id="step1-badge" style="display:none;"></span>
+    </div>
+    <div class="step-row" id="step2-row">
+      <div class="step-num todo" id="step2-num">2</div>
+      <div class="step-info">
+        <div class="step-label">Kamer scannen</div>
+        <div class="step-sub" id="step2-sub">Scan de QR-code aan de muur in de kamer</div>
+      </div>
+      <span class="step-badge" id="step2-badge" style="display:none;"></span>
+    </div>
+    <div class="step-row" id="step3-row" style="border:none;">
+      <div class="step-num todo" id="step3-num">3</div>
+      <div class="step-info">
+        <div class="step-label">Positie kiezen</div>
+        <div class="step-sub">Tik een vrije cel aan in het raster</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stap 1: doos invoeren -->
+  <div id="place-stap1">
+    <div class="scan-area">
+      <div class="scan-icon">📷</div>
+      <div class="scan-title">Open Camera-app → scan doos-QR</div>
+      <div class="scan-sub">De app opent automatisch met het doosnummer ingevuld</div>
+      <div class="scan-divider">of vul handmatig in</div>
+      <div style="display:flex; gap:8px;">
+        <input type="number" id="inp-doosnr" placeholder="Doosnummer (bijv. 42)" style="font-size:18px; padding:12px; border:2px solid var(--border); border-radius:var(--radius-sm); flex:1; background:var(--white); color:var(--text);" min="1" max="999">
+        <button class="btn-print" style="padding:12px 18px; font-size:16px;" onclick="setDoosHandmatig()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stap 2: kamer kiezen -->
+  <div id="place-stap2" style="display:none;">
+    <div class="scan-area">
+      <div class="scan-icon">🏠</div>
+      <div class="scan-title">Open Camera-app → scan kamer-QR</div>
+      <div class="scan-sub">Hang het kamer-label aan de muur of op een doos in de kamer</div>
+      <div class="scan-divider">of kies handmatig</div>
+      <div class="field" style="margin:0;">
+        <select id="sel-kamer" onchange="setKamerHandmatig()">
+          <option value="">— kies een kamer —</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stap 3: raster -->
+  <div id="place-stap3" style="display:none;">
+    <div class="card">
+      <div class="card-title" id="grid-kamer-title">Kies positie in kamer</div>
+      <div id="laag-keuze" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
+      <div class="grid-wrap">
+        <div class="grid-container" id="place-grid"></div>
+      </div>
+      <div class="grid-legend">
+        <div style="display:flex;align-items:center;gap:4px;"><div class="leg-dot" style="background:var(--blue-bg);border:1px solid var(--blue);"></div><span>geselecteerd</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div class="leg-dot" style="background:var(--bg);border:1px solid var(--border);opacity:.6;"></div><span>bezet</span></div>
+        <div style="display:flex;align-items:center;gap:4px;"><div class="leg-dot" style="background:var(--white);border:1px solid var(--border);"></div><span>vrij</span></div>
+      </div>
+    </div>
+    <button class="btn-primary" id="btn-opslaan-locatie" onclick="slaLocatieOp()" disabled>
+      Opslaan
+    </button>
+    <div class="hint">Tik een vrije cel aan om te selecteren</div>
+  </div>
+
+</div>
+
+<!-- ============================================================ -->
+<!-- SCHERM 3: ZOEKEN                                             -->
+<!-- ============================================================ -->
+<div class="screen" id="screen-zoeken">
+
+  <div class="search-bar">
+    <input type="text" id="search-input" placeholder="Zoek op doosnr, kamer of inhoud..." oninput="renderZoekResultaten()">
+  </div>
+
+  <div id="zoek-resultaat-specifiek" style="display:none;"></div>
+
+  <div id="zoek-filter-row" style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+    <button onclick="setZoekFilter('alle')" id="filter-alle" class="btn-print" style="font-size:13px; padding:7px 14px; background:var(--navy);">Alle dozen</button>
+    <button onclick="setZoekFilter('geplaatst')" id="filter-geplaatst" class="btn-print" style="font-size:13px; padding:7px 14px; background:var(--bg); color:var(--text); border:1px solid var(--border);">Geplaatst</button>
+    <button onclick="setZoekFilter('ongeplaatst')" id="filter-ongeplaatst" class="btn-print" style="font-size:13px; padding:7px 14px; background:var(--bg); color:var(--text); border:1px solid var(--border);">Nog niet gescand</button>
+  </div>
+
+  <div id="zoek-lijst"></div>
+  <div class="empty-state" id="zoek-empty" style="display:none;">Geen dozen gevonden.</div>
+
+</div>
+
+<!-- Modal: kamer detail + print -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Kamer</span>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Print area -->
+<div id="print-area"></div>
+
+<script>
+// ============================================================
+// CONFIGURATIE — zelfde GAS_URL als index.html
+// ============================================================
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyQp6Ije_2gK4V5AFC95_fV_0PRYDwxOCMnYr6Mi3ddvMztyC20R9xEf5VI4NVjcHEC/exec';
+// ============================================================
+
+var state = {
+  kamers: [],      // [{id, naam, cols, rows, bezet: {cel: doosNr}}]
+  dozen: [],       // uit Google Sheets — Dozen tab
+  // Plaatsen-flow
+  huidigDoosNr: null,
+  huidigKamer: null,
+  gekozenCel: null,
+  huidigLaag: 1,
+  zoekFilter: 'alle'
+};
+
+// ---- Hulpfuncties ----
+function pad(n, l) { return String(n).padStart(l || 3, '0'); }
+function nrStr(n) { return '#' + pad(n); }
+function colLetter(i) { return String.fromCharCode(65 + i); } // 0=A, 1=B ...
+function celNaam(col, row) { return colLetter(col) + (row + 1); }
+
+function syncShow(msg, type) {
+  var b = document.getElementById('sync-banner');
+  var s = document.getElementById('sync-spinner');
+  var m = document.getElementById('sync-msg');
+  b.className = 'sync-banner show' + (type ? ' ' + type : '');
+  s.style.display = (type === 'ok' || type === 'err') ? 'none' : 'block';
+  m.textContent = msg;
+  if (type) setTimeout(function() { b.classList.remove('show'); }, 2800);
+}
+
+function showSuccess(msg) {
+  var b = document.getElementById('success-banner');
+  b.textContent = msg;
+  b.classList.add('show');
+  setTimeout(function() { b.classList.remove('show'); }, 3000);
+}
+
+function apiCall(action, payload) {
+  var url = GAS_URL + '?action=' + action;
+  if (payload) url += '&data=' + encodeURIComponent(JSON.stringify(payload));
+  return fetch(url, { method: 'GET', redirect: 'follow' }).then(function(r) { return r.json(); });
+}
+
+// ---- Init ----
+function init() {
+  if (!GAS_URL || GAS_URL === 'JOUW_GAS_URL_HIER') {
+    syncShow('Stel eerst GAS_URL in — zie INSTALLATIE.md', 'err');
+    loadLocalState();
+    checkHash();
+    return;
+  }
+  syncShow('Laden...');
+  Promise.all([
+    apiCall('getKamers'),
+    apiCall('getAll')
+  ]).then(function(results) {
+    state.kamers = results[0].data || [];
+    state.dozen = results[1].data || [];
+    // Merge locatie-data in dozen
+    (results[0].locaties || []).forEach(function(loc) {
+      var d = state.dozen.find(function(x) { return x.nr === loc.nr; });
+      if (d) { d.locKamer = loc.kamer; d.locCel = loc.cel; d.locTijdstip = loc.tijdstip; }
+    });
+    saveLocalState();
+    syncShow('Verbonden ✓', 'ok');
+    renderKamerLijst();
+    populateKamerSelect();
+    checkHash();
+  }).catch(function() {
+    syncShow('Offline — lokale data', 'err');
+    loadLocalState();
+    renderKamerLijst();
+    populateKamerSelect();
+    checkHash();
+  });
+}
+
+function loadLocalState() {
+  try {
+    var raw = localStorage.getItem('locatieapp_state');
+    if (raw) { var s = JSON.parse(raw); state.kamers = s.kamers || []; state.dozen = s.dozen || []; }
+  } catch(e) {}
+  renderKamerLijst();
+}
+
+function saveLocalState() {
+  try { localStorage.setItem('locatieapp_state', JSON.stringify({ kamers: state.kamers, dozen: state.dozen })); } catch(e) {}
+}
+
+function checkHash() {
+  var hash = window.location.hash;
+  // #doos=042 — van verhuisapp QR
+  if (hash && hash.indexOf('#doos=') === 0) {
+    var nrRaw = hash.replace('#doos=', '');
+    var nr = parseInt(nrRaw);
+    if (!isNaN(nr)) {
+      setDoosVanHash(nr);
+      return;
+    }
+  }
+  // #kamer=Woonkamer — van kamer-QR
+  if (hash && hash.indexOf('#kamer=') === 0) {
+    var kamerNaam = decodeURIComponent(hash.replace('#kamer=', ''));
+    setKamerVanHash(kamerNaam);
+    return;
+  }
+  // #zoek=042
+  if (hash && hash.indexOf('#zoek=') === 0) {
+    var zoekNr = hash.replace('#zoek=', '');
+    showScreen('zoeken');
+    document.getElementById('search-input').value = zoekNr;
+    renderZoekResultaten();
+  }
+}
+
+function setDoosVanHash(nr) {
+  state.huidigDoosNr = nr;
+  updateStepUI();
+  showScreen('plaatsen');
+  history.replaceState(null, '', window.location.pathname);
+}
+
+function setKamerVanHash(naam) {
+  var k = state.kamers.find(function(x) { return x.naam === naam; });
+  if (k && state.huidigDoosNr) {
+    state.huidigKamer = k;
+    showScreen('plaatsen');
+    toonRaster();
+    history.replaceState(null, '', window.location.pathname);
+  } else if (k) {
+    // Geen doos context — ga naar plaatsen, zet kamer al in
+    showScreen('plaatsen');
+    document.getElementById('sel-kamer').value = naam;
+    state.huidigKamer = k;
+    updateStepUI();
+    history.replaceState(null, '', window.location.pathname);
+  }
+}
+
+// ---- Schermen ----
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('screen-' + id).classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+  var titles = { kamers: 'Kamerbeheer', plaatsen: 'Doos plaatsen', zoeken: 'Locatie zoeken' };
+  document.getElementById('screen-title').textContent = titles[id] || '';
+  if (id === 'zoeken') { refreshData(function() { renderZoekResultaten(); }); }
+  if (id === 'kamers') { refreshData(function() { renderKamerLijst(); populateKamerSelect(); }); }
+}
+
+function refreshData(callback) {
+  if (!GAS_URL || GAS_URL === 'JOUW_GAS_URL_HIER') { if (callback) callback(); return; }
+  Promise.all([apiCall('getKamers'), apiCall('getAll')])
+    .then(function(results) {
+      state.kamers = results[0].data || [];
+      state.dozen = results[1].data || [];
+      (results[0].locaties || []).forEach(function(loc) {
+        var d = state.dozen.find(function(x) { return x.nr === loc.nr; });
+        if (d) { d.locKamer = loc.kamer; d.locCel = loc.cel; d.locTijdstip = loc.tijdstip; }
+      });
+      saveLocalState();
+      if (callback) callback();
+    })
+    .catch(function() { if (callback) callback(); });
+}
+
+// ---- SCHERM 1: KAMERS ----
+function setKamerLaag(kamerId, laag) {
+  var k = state.kamers.find(function(x) { return x.id === kamerId; });
+  if (!k) return;
+  k._actieveLaag = laag;
+  renderKamerLijst();
+}
+
+function toggleKamerDetail(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var isOpen = el.classList.contains('open');
+  // Sluit alle andere details
+  document.querySelectorAll('.kamer-detail.open').forEach(function(d) {
+    d.classList.remove('open');
+    var arrId = 'arr-' + d.id;
+    var arr = document.getElementById(arrId);
+    if (arr) arr.textContent = '›';
+  });
+  if (!isOpen) {
+    el.classList.add('open');
+    var arr = document.getElementById('arr-' + id);
+    if (arr) arr.textContent = '⌄';
+  }
+}
+
+function showKamerLijst() {
+  document.getElementById('kamer-lijst-view').style.display = '';
+  document.getElementById('kamer-form-view').style.display = 'none';
+  renderKamerLijst();
+}
+
+function showKamerForm(kamer) {
+  document.getElementById('kamer-lijst-view').style.display = 'none';
+  document.getElementById('kamer-form-view').style.display = '';
+  if (kamer) {
+    document.getElementById('kamer-form-title').textContent = kamer.naam;
+    document.getElementById('inp-kamernaam').value = kamer.naam;
+    document.getElementById('inp-cols').value = kamer.cols;
+    document.getElementById('inp-rows').value = kamer.rows;
+    document.getElementById('inp-lagen').value = kamer.lagen || 1;
+    document.getElementById('btn-print-kamer').style.display = 'block';
+    document.getElementById('btn-save-kamer').textContent = 'Bijwerken';
+    document.getElementById('btn-save-kamer').dataset.editId = kamer.id;
+  } else {
+    document.getElementById('kamer-form-title').textContent = 'Nieuwe kamer';
+    document.getElementById('inp-kamernaam').value = '';
+    document.getElementById('inp-cols').value = '4';
+    document.getElementById('inp-rows').value = '5';
+    document.getElementById('inp-lagen').value = '1';
+    document.getElementById('btn-print-kamer').style.display = 'none';
+    document.getElementById('btn-save-kamer').textContent = 'Opslaan & QR genereren';
+    delete document.getElementById('btn-save-kamer').dataset.editId;
+  }
+  updateGridPreview();
+}
+
+function updateGridPreview() {
+  var cols = parseInt(document.getElementById('inp-cols').value) || 4;
+  var rows = parseInt(document.getElementById('inp-rows').value) || 5;
+  var lagen = parseInt(document.getElementById('inp-lagen').value) || 1;
+  cols = Math.min(cols, 26); rows = Math.min(rows, 99);
+  var grid = document.getElementById('grid-preview');
+  grid.style.gridTemplateColumns = 'repeat(' + cols + ', 40px)';
+  var html = '';
+  for (var r = 0; r < Math.min(rows, 8); r++) {
+    for (var c = 0; c < cols; c++) {
+      html += '<div class="grid-cell vrij" style="min-width:40px;min-height:36px;"><span class="cell-coord" style="font-size:11px;">' + celNaam(c, r) + '</span></div>';
+    }
+  }
+  if (rows > 8) html += '<div style="grid-column:1/-1; text-align:center; font-size:11px; color:var(--muted); padding:4px;">... en ' + (rows - 8) + ' rijen meer</div>';
+  grid.innerHTML = html;
+}
+
+function saveKamer() {
+  var naam = document.getElementById('inp-kamernaam').value.trim();
+  var cols = parseInt(document.getElementById('inp-cols').value) || 4;
+  var rows = parseInt(document.getElementById('inp-rows').value) || 5;
+  var lagen = parseInt(document.getElementById('inp-lagen').value) || 1;
+  if (!naam) { alert('Vul een kamernaam in.'); return; }
+  cols = Math.min(Math.max(cols, 1), 26);
+  rows = Math.min(Math.max(rows, 1), 99);
+
+  var editId = document.getElementById('btn-save-kamer').dataset.editId;
+  var isEdit = !!editId;
+  var id = isEdit ? editId : (naam.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now());
+
+  // Migreer bestaande bezetting naar cel-laag formaat indien nodig
+  var oudBezet = editId ? (state.kamers.find(function(k){return k.id===editId;})||{}).bezet || {} : {};
+  var nieuwBezet = {};
+  Object.keys(oudBezet).forEach(function(k) {
+    // Als sleutel geen laag bevat (oud formaat "A1"), migreer naar "A1-1"
+    nieuwBezet[k.indexOf('-') === -1 ? k + '-1' : k] = oudBezet[k];
+  });
+  var kamer = { id: id, naam: naam, cols: cols, rows: rows, lagen: lagen, bezet: nieuwBezet };
+  if (isEdit) {
+    var idx = state.kamers.findIndex(function(k) { return k.id === editId; });
+    if (idx >= 0) { kamer.bezet = state.kamers[idx].bezet || {}; state.kamers[idx] = kamer; }
+  } else {
+    state.kamers.push(kamer);
+  }
+  saveLocalState();
+  renderKamerLijst();
+  document.getElementById('btn-print-kamer').style.display = 'block';
+  document.getElementById('btn-save-kamer').textContent = 'Bijgewerkt ✓';
+  document.getElementById('kamer-form-hint').textContent = 'QR-code is gegenereerd. Print het kamer-label en hang het in de kamer.';
+  showSuccess(naam + ' opgeslagen');
+  populateKamerSelect();
+
+  if (GAS_URL && GAS_URL !== 'JOUW_GAS_URL_HIER') {
+    apiCall('saveKamer', kamer).catch(function() {});
+  }
+}
+
+function renderKamerLijst() {
+  var lijst = document.getElementById('kamer-lijst');
+  var empty = document.getElementById('kamer-empty');
+  var count = document.getElementById('kamer-count');
+  if (!state.kamers.length) {
+    lijst.innerHTML = '';
+    empty.style.display = 'block';
+    count.textContent = '0 kamers';
+    return;
+  }
+  empty.style.display = 'none';
+  count.textContent = state.kamers.length + ' kamer' + (state.kamers.length !== 1 ? 's' : '');
+  lijst.innerHTML = state.kamers.map(function(k) {
+    var bezetObj = k.bezet || {};
+    var bezetCount = Object.keys(bezetObj).length;
+    var totaal = k.cols * k.rows;
+    var pct = Math.round(bezetCount / totaal * 100);
+    var kId = 'kd-' + k.id.replace(/[^a-zA-Z0-9]/g,'_');
+    // Bouw raster
+    var cols = k.cols; var rows = k.rows;
+    var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    var maxLagen = k.lagen || 1;
+    var actieveLaag = k._actieveLaag || 1;
+    // Laagfilter HTML
+    var laagFilterHTML = '';
+    if (maxLagen > 1) {
+      laagFilterHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">' +
+        '<span style="font-size:12px;font-weight:600;color:var(--muted);">Toon laag:</span>';
+      for (var lf = 1; lf <= maxLagen; lf++) {
+        var isAct = lf === actieveLaag;
+        laagFilterHTML += '<button onclick="setKamerLaag(\'' + k.id + '\',' + lf + ')" style="padding:4px 12px;border-radius:6px;border:2px solid ' + (isAct?'var(--navy)':'var(--border)') + ';background:' + (isAct?'var(--navy)':'var(--white)') + ';color:' + (isAct?'white':'var(--text)') + ';font-weight:700;font-size:13px;cursor:pointer;">Laag ' + lf + '</button>';
+      }
+      laagFilterHTML += '</div>';
+    }
+    var rasterHTML = '<div class="kamer-raster-wrap">' + laagFilterHTML + '<div style="display:inline-grid;grid-template-columns:repeat(' + cols + ',minmax(44px,1fr));gap:4px;">';
+    for (var r = 1; r <= rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var cel = letters[c] + r;
+        var sleutelLaag = cel + '-' + actieveLaag;
+        var doosNr = bezetObj[sleutelLaag] !== undefined ? bezetObj[sleutelLaag] : bezetObj[cel];
+        if (doosNr) {
+          var d = state.dozen.find(function(x) { return x.nr === parseInt(doosNr); });
+          var inhoud = d ? (d.inhoud||'').substring(0,12) : '';
+          rasterHTML += '<div class="overview-cell hit" title="' + cel + ': doos #' + String(doosNr).padStart(3,'0') + '">' +
+            '<span class="oc-coord">' + cel + '</span>' +
+            '<span class="oc-nr">#' + String(doosNr).padStart(3,'0') + '</span>' +
+            (inhoud ? '<span style="font-size:8px;color:#555;text-align:center;line-height:1.1;">' + inhoud + '</span>' : '') +
+            '</div>';
+        } else {
+          rasterHTML += '<div class="overview-cell leeg"><span class="oc-coord">' + cel + '</span></div>';
+        }
+      }
+    }
+    rasterHTML += '</div></div>';
+
+    // Dozenlijst naast raster
+    var dozenInKamer = Object.keys(bezetObj).sort().map(function(sleutel) {
+      var doosNr = bezetObj[sleutel];
+      var dz = state.dozen.find(function(x) { return x.nr === parseInt(doosNr); });
+      // Splits "A1-2" → cel "A1", laag "2"
+      var parts = sleutel.match(/^([A-Z]+\d+)-(\d+)$/);
+      var celNaamDisp = parts ? parts[1] : sleutel;
+      var laagDisp = parts ? parseInt(parts[2]) : 1;
+      return { sleutel: sleutel, cel: celNaamDisp, laag: laagDisp, nr: doosNr, inhoud: dz ? (dz.inhoud||'—') : '—', medium: dz ? (dz.medium||'') : '' };
+    });
+    var lijstHTML = '';
+    if (dozenInKamer.length) {
+      lijstHTML = '<div style="flex:1;min-width:160px;border-left:1px solid var(--border);padding-left:12px;">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Dozen in kamer</div>' +
+        dozenInKamer.map(function(item) {
+          var laagLabel = (k.lagen || 1) > 1 ? ' <span style="font-size:10px;color:var(--muted);">laag ' + item.laag + '</span>' : '';
+          return '<div style="display:flex;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;">' +
+            '<span style="font-weight:900;color:var(--navy);min-width:40px;">' + item.cel + laagLabel + '</span>' +
+            '<span style="font-weight:700;min-width:38px;">#' + String(item.nr).padStart(3,'0') + '</span>' +
+            '<span style="color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + item.inhoud + '</span>' +
+            (item.medium ? '<span style="font-size:11px;color:var(--muted);white-space:nowrap;">' + item.medium + '</span>' : '') +
+            '</div>';
+        }).join('') +
+        '</div>';
+    }
+
+    return '<div class="kamer-wrap">' +
+      '<div class="kamer-item" onclick="toggleKamerDetail(\'' + kId + '\')">'+
+        '<div><div class="kamer-naam">' + k.naam + '</div>' +
+        '<div class="kamer-meta">' + cols + ' kol × ' + rows + ' rijen · ' + bezetCount + '/' + totaal + ' dozen (' + pct + '%)</div></div>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<span class="kbadge">QR ✓</span>' +
+          '<span style="font-size:18px;color:var(--muted);" id="arr-' + kId + '">›</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="kamer-detail" id="' + kId + '">' +
+        '<div class="kamer-detail-header">' +
+          '<span style="font-size:13px;color:var(--muted);font-weight:600;">Rasteroverzicht</span>' +
+          '<div class="kamer-detail-acties">' +
+            '<button style="font-size:13px;padding:6px 12px;border:1.5px solid var(--border);border-radius:6px;background:white;cursor:pointer;font-weight:600;" onclick="event.stopPropagation();showKamerForm(' + JSON.stringify(k).replace(/"/g,'&quot;') + ')">✏️ Bewerken</button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:16px;align-items:flex-start;overflow-x:auto;">' +
+          rasterHTML +
+          lijstHTML +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function printKamerLabel() {
+  var naam = document.getElementById('inp-kamernaam').value.trim();
+  var cols = parseInt(document.getElementById('inp-cols').value) || 4;
+  var rows = parseInt(document.getElementById('inp-rows').value) || 5;
+  var lagen = parseInt(document.getElementById('inp-lagen').value) || 1;
+  var kamer = state.kamers.find(function(k) { return k.naam === naam; });
+  var bezet = kamer ? (kamer.bezet || {}) : {};
+
+  var qrText = window.location.origin + window.location.pathname + '#kamer=' + encodeURIComponent(naam);
+  var qrCanvas = document.createElement('canvas');
+  try {
+    var qr = QRGen.encode(qrText);
+    var sz = qr.size, scale = 6, pad2 = 3, total = (sz + pad2 * 2) * scale;
+    qrCanvas.width = total; qrCanvas.height = total;
+    var ctx = qrCanvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, total, total);
+    ctx.fillStyle = '#000';
+    for (var y = 0; y < sz; y++) for (var x = 0; x < sz; x++) {
+      if (qr.getModule(x, y)) ctx.fillRect((x + pad2) * scale, (y + pad2) * scale, scale, scale);
+    }
+  } catch(e) { qrCanvas = null; }
+
+  var maxLagen = kamer ? (kamer.lagen || 1) : 1;
+  var gridHtml = '';
+  for (var lg = 1; lg <= maxLagen; lg++) {
+    if (maxLagen > 1) gridHtml += '<div style="font-size:9pt;font-weight:700;margin:4pt 0 2pt;">Laag ' + lg + '</div>';
+    gridHtml += '<div class="print-grid" style="grid-template-columns:repeat(' + cols + ',22mm);margin-bottom:' + (maxLagen>1?'4pt':'0') + ';">';
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var cel = celNaam(c, r);
+        var sleutelLg = cel + '-' + lg;
+        var doos = bezet[sleutelLg] !== undefined ? bezet[sleutelLg] : (lg===1 && bezet[cel] !== undefined ? bezet[cel] : null);
+        gridHtml += '<div class="print-cell ' + (doos ? 'bezet' : 'leeg') + '">' +
+          '<span class="pc-coord">' + cel + '</span>' +
+          (doos ? '<span class="pc-nr">#' + pad(doos) + '</span>' : '') +
+          '</div>';
+      }
+    }
+    gridHtml += '</div>';
+  }
+
+  var canvasId = 'kamer-qr-canvas';
+  var html = '<div class="print-page">' +
+    '<div class="print-kamer-title">' + naam + '</div>' +
+    gridHtml +
+    '<div style="display:flex; align-items:flex-start; gap:15mm; margin-top:8pt;">' +
+    '<div>' +
+    '<canvas id="' + canvasId + '" style="width:35mm;height:35mm;"></canvas>' +
+    '<div style="font-size:8pt; margin-top:4pt; text-align:center;">Scan om doos te plaatsen</div>' +
+    '</div>' +
+    '<div style="flex:1;">' +
+    '<table class="print-table"><thead><tr><th>Cel</th><th>Doos</th><th>Uit kamer</th><th>Inhoud</th></tr></thead><tbody>' +
+    Object.entries(bezet).sort().map(function(e) {
+      var d = state.dozen.find(function(x) { return x.nr === parseInt(e[1]); }) || {};
+      var celDisp = e[0].replace(/^([A-Z]+\d+)-(\d+)$/, function(m,c,l){return c + ' L' + l;});
+      return '<tr><td>' + celDisp + '</td><td>' + nrStr(e[1]) + '</td><td>' + (d.uit || '—') + '</td><td>' + (d.inhoud || '—').substring(0, 30) + '</td></tr>';
+    }).join('') +
+    (Object.keys(bezet).length === 0 ? '<tr><td colspan="4" style="color:#aaa; text-align:center;">Nog geen dozen geplaatst</td></tr>' : '') +
+    '</tbody></table></div></div></div>';
+
+  document.getElementById('print-area').innerHTML = html;
+  if (qrCanvas) {
+    var target = document.getElementById(canvasId);
+    if (target) {
+      target.width = qrCanvas.width; target.height = qrCanvas.height;
+      target.getContext('2d').drawImage(qrCanvas, 0, 0);
+    }
+  }
+  setTimeout(function() { window.print(); }, 300);
+}
+
+// ---- SCHERM 2: PLAATSEN ----
+function updateStepUI() {
+  var s1n = document.getElementById('step1-num');
+  var s2n = document.getElementById('step2-num');
+  var s3n = document.getElementById('step3-num');
+  var s1b = document.getElementById('step1-badge');
+  var s2b = document.getElementById('step2-badge');
+  var s1s = document.getElementById('step1-sub');
+  var s2s = document.getElementById('step2-sub');
+
+  // Stap 1
+  if (state.huidigDoosNr) {
+    s1n.className = 'step-num done'; s1n.textContent = '✓';
+    s1b.textContent = nrStr(state.huidigDoosNr);
+    s1b.style.display = 'inline-block';
+    s1s.textContent = 'Doos gescand of ingevoerd';
+    document.getElementById('place-stap1').style.display = 'none';
+    document.getElementById('place-stap2').style.display = '';
+    s2n.className = 'step-num active';
+  } else {
+    s1n.className = 'step-num active'; s1n.textContent = '1';
+    s1b.style.display = 'none';
+    document.getElementById('place-stap1').style.display = '';
+    document.getElementById('place-stap2').style.display = 'none';
+    s2n.className = 'step-num todo';
+  }
+
+  // Stap 2
+  if (state.huidigKamer) {
+    s2n.className = 'step-num done'; s2n.textContent = '✓';
+    s2b.textContent = state.huidigKamer.naam;
+    s2b.style.display = 'inline-block';
+    s2s.textContent = 'Kamer bepaald';
+    s3n.className = 'step-num active';
+  } else {
+    s2b.style.display = 'none';
+    s3n.className = 'step-num todo';
+  }
+
+  // Context pill
+  var pill = document.getElementById('context-pill');
+  if (state.huidigDoosNr) {
+    pill.textContent = nrStr(state.huidigDoosNr);
+  } else {
+    pill.textContent = '';
+  }
+}
+
+function setDoosHandmatig() {
+  var nr = parseInt(document.getElementById('inp-doosnr').value);
+  if (!nr || nr < 1) { alert('Vul een geldig doosnummer in.'); return; }
+  state.huidigDoosNr = nr;
+  state.huidigKamer = null;
+  state.gekozenCel = null;
+  updateStepUI();
+}
+
+function populateKamerSelect() {
+  var sel = document.getElementById('sel-kamer');
+  var val = sel.value;
+  sel.innerHTML = '<option value="">— kies een kamer —</option>' +
+    state.kamers.map(function(k) {
+      return '<option value="' + k.naam + '">' + k.naam + ' (' + k.cols + '×' + k.rows + ')</option>';
+    }).join('');
+  if (val) sel.value = val;
+}
+
+function setKamerHandmatig() {
+  var naam = document.getElementById('sel-kamer').value;
+  if (!naam) return;
+  var k = state.kamers.find(function(x) { return x.naam === naam; });
+  if (k) {
+    state.huidigKamer = k;
+    state.gekozenCel = null;
+    updateStepUI();
+    toonRaster();
+  }
+}
+
+function toonRaster() {
+  var k = state.huidigKamer;
+  if (!k) return;
+  document.getElementById('place-stap2').style.display = 'none';
+  document.getElementById('place-stap3').style.display = '';
+  var maxLagen = k.lagen || 1;
+  state.huidigLaag = 1;
+  document.getElementById('grid-kamer-title').textContent = k.naam + ' — kies positie (' + k.cols + '×' + k.rows + ', ' + maxLagen + ' laag' + (maxLagen > 1 ? 'en' : '') + ')';
+
+  // Laagknoppen
+  var laagDiv = document.getElementById('laag-keuze');
+  if (maxLagen > 1) {
+    var laagHtml = '<span style="font-size:13px;font-weight:600;color:var(--muted);line-height:32px;margin-right:4px;">Laag:</span>';
+    for (var l = 1; l <= maxLagen; l++) {
+      laagHtml += '<button onclick="selecteerLaag(' + l + ')" id="laag-btn-' + l + '" style="padding:6px 14px;border-radius:6px;border:2px solid ' + (l===1?'var(--navy)':'var(--border)') + ';background:' + (l===1?'var(--navy)':'var(--white)') + ';color:' + (l===1?'white':'var(--text)') + ';font-weight:700;font-size:14px;cursor:pointer;">Laag ' + l + '</button>';
+    }
+    laagDiv.innerHTML = laagHtml;
+    laagDiv.style.display = 'flex';
+    laagDiv.style.gap = '8px';
+    laagDiv.style.flexWrap = 'wrap';
+    laagDiv.style.marginBottom = '12px';
+    laagDiv.style.alignItems = 'center';
+  } else {
+    laagDiv.style.display = 'none';
+  }
+
+  tekenRasterVoorLaag(1);
+  document.getElementById('btn-opslaan-locatie').disabled = true;
+  state.gekozenCel = null;
+}
+
+function selecteerLaag(laag) {
+  var k = state.huidigKamer;
+  if (!k) return;
+  state.huidigLaag = laag;
+  state.gekozenCel = null;
+  var maxLagen = k.lagen || 1;
+  for (var l = 1; l <= maxLagen; l++) {
+    var btn = document.getElementById('laag-btn-' + l);
+    if (!btn) continue;
+    btn.style.border = l === laag ? '2px solid var(--navy)' : '2px solid var(--border)';
+    btn.style.background = l === laag ? 'var(--navy)' : 'var(--white)';
+    btn.style.color = l === laag ? 'white' : 'var(--text)';
+  }
+  tekenRasterVoorLaag(laag);
+  document.getElementById('btn-opslaan-locatie').disabled = true;
+}
+
+function tekenRasterVoorLaag(laag) {
+  var k = state.huidigKamer;
+  if (!k) return;
+  var bezet = k.bezet || {};
+  var grid = document.getElementById('place-grid');
+  grid.style.gridTemplateColumns = 'repeat(' + k.cols + ', 1fr)';
+  var html = '';
+  for (var r = 0; r < k.rows; r++) {
+    for (var c = 0; c < k.cols; c++) {
+      var cel = celNaam(c, r);
+      var sleutel = cel + '-' + laag;
+      var doosInCel = bezet[sleutel] !== undefined ? bezet[sleutel] : (bezet[cel] !== undefined ? bezet[cel] : null);
+      var cls = doosInCel ? 'bezet' : 'vrij';
+      html += '<div class="grid-cell ' + cls + '" id="gc-' + cel + '" onclick="selecteerCel(\'' + cel + '\')">'+
+        '<span class="cell-coord">' + cel + (doosInCel ? '' : '') + '</span>' +
+        (doosInCel ? '<span class="cell-doos">' + nrStr(doosInCel) + '</span>' : '') +
+        '</div>';
+    }
+  }
+  grid.innerHTML = html;
+}
+
+function selecteerCel(cel) {
+  var k = state.huidigKamer;
+  var laag = state.huidigLaag || 1;
+  var sleutel = cel + '-' + laag;
+  var bezet = k ? (k.bezet || {}) : {};
+  // Bezet op deze laag = niet klikbaar
+  if (!k || bezet[sleutel] !== undefined || bezet[cel] !== undefined) return;
+  // Deselect vorige
+  if (state.gekozenCel) {
+    var prev = document.getElementById('gc-' + state.gekozenCel);
+    if (prev) { prev.className = 'grid-cell vrij'; prev.querySelector('.cell-coord').textContent = state.gekozenCel; }
+  }
+  state.gekozenCel = cel;
+  var el = document.getElementById('gc-' + cel);
+  if (el) {
+    el.className = 'grid-cell selected';
+    el.querySelector('.cell-coord').textContent = cel + ' ✓';
+  }
+  var btn = document.getElementById('btn-opslaan-locatie');
+  btn.disabled = false;
+  var laagTekst = (k.lagen || 1) > 1 ? ' (laag ' + laag + ')' : '';
+  btn.textContent = 'Opslaan — doos ' + nrStr(state.huidigDoosNr) + ' → ' + cel + laagTekst;
+}
+
+function slaLocatieOp() {
+  if (!state.huidigDoosNr || !state.huidigKamer || !state.gekozenCel) return;
+  var nr = state.huidigDoosNr;
+  var kamer = state.huidigKamer;
+  var cel = state.gekozenCel;
+  var nu = new Date();
+  var tijdstip = [nu.getDate(), nu.getMonth()+1, nu.getFullYear()].map(function(n){return String(n).padStart(2,'0');}).join('-') +
+    ' ' + [nu.getHours(), nu.getMinutes()].map(function(n){return String(n).padStart(2,'0');}).join(':');
+
+  // Update lokale state — gebruik cel+laag als sleutel
+  var laag = state.huidigLaag || 1;
+  var celSleutel = cel + '-' + laag;
+  if (!kamer.bezet) kamer.bezet = {};
+  kamer.bezet[celSleutel] = nr;
+  var d = state.dozen.find(function(x) { return x.nr === nr; });
+  if (d) { d.locKamer = kamer.naam; d.locCel = celSleutel; d.locTijdstip = tijdstip; }
+  cel = celSleutel; // gebruik cel+laag voor opslag
+  saveLocalState();
+
+  // Reset UI → klaar voor volgende doos
+  state.huidigDoosNr = null;
+  state.huidigKamer = null;
+  state.gekozenCel = null;
+  document.getElementById('inp-doosnr').value = '';
+  document.getElementById('sel-kamer').value = '';
+  document.getElementById('place-stap3').style.display = 'none';
+  document.getElementById('place-stap2').style.display = 'none';
+  updateStepUI();
+
+  // Sync naar GAS — wacht op bevestiging
+  var payload = { nr: nr, kamer: kamer.naam, cel: cel, tijdstip: tijdstip };
+  if (GAS_URL && GAS_URL !== 'JOUW_GAS_URL_HIER') {
+    syncShow('Opslaan...');
+    Promise.all([
+      apiCall('saveLocatie', payload),
+      apiCall('saveKamer', kamer)
+    ]).then(function() {
+      syncShow('Locatie opgeslagen ✓', 'ok');
+      showSuccess('Doos ' + nrStr(nr) + ' geplaatst in ' + kamer.naam + ' — ' + cel);
+    }).catch(function() {
+      syncShow('Offline opgeslagen', 'err');
+      showSuccess('Doos ' + nrStr(nr) + ' geplaatst in ' + kamer.naam + ' — ' + cel);
+    });
+  } else {
+    showSuccess('Doos ' + nrStr(nr) + ' geplaatst in ' + kamer.naam + ' — ' + cel);
+  }
+}
+
+function resetPlaatsen() {
+  state.huidigDoosNr = null;
+  state.huidigKamer = null;
+  state.gekozenCel = null;
+  document.getElementById('inp-doosnr').value = '';
+  document.getElementById('sel-kamer').value = '';
+  document.getElementById('place-stap3').style.display = 'none';
+  document.getElementById('place-stap2').style.display = 'none';
+  updateStepUI();
+}
+
+// ---- SCHERM 3: ZOEKEN ----
+var _zoekFilterAktief = 'alle';
+
+function setZoekFilter(f) {
+  _zoekFilterAktief = f;
+  ['alle','geplaatst','ongeplaatst'].forEach(function(n) {
+    var btn = document.getElementById('filter-' + n);
+    btn.style.background = (n === f) ? 'var(--navy)' : 'var(--bg)';
+    btn.style.color = (n === f) ? 'white' : 'var(--text)';
+    btn.style.border = (n === f) ? 'none' : '1px solid var(--border)';
+  });
+  renderZoekResultaten();
+}
+
+function renderZoekResultaten() {
+  var q = (document.getElementById('search-input').value || '').toLowerCase().trim();
+  var lijst = document.getElementById('zoek-lijst');
+  var empty = document.getElementById('zoek-empty');
+  var specifiek = document.getElementById('zoek-resultaat-specifiek');
+
+  // Exact doosnummer?
+  var exactNr = parseInt(q.replace('#', ''));
+  if (!isNaN(exactNr) && String(exactNr) === q.replace('#', '').replace(/^0+/, '') && exactNr > 0) {
+    var exactDoos = state.dozen.find(function(d) { return d.nr === exactNr; });
+    if (exactDoos) {
+      specifiek.style.display = '';
+      specifiek.innerHTML = renderDoosDetail(exactDoos);
+      lijst.innerHTML = '';
+      empty.style.display = 'none';
+      return;
+    }
+  }
+  specifiek.style.display = 'none';
+
+  var filtered = state.dozen.filter(function(d) {
+    if (_zoekFilterAktief === 'geplaatst' && !d.locCel) return false;
+    if (_zoekFilterAktief === 'ongeplaatst' && d.locCel) return false;
+    if (!q) return true;
+    return nrStr(d.nr).toLowerCase().includes(q) ||
+      (d.uit || '').toLowerCase().includes(q) ||
+      (d.naar || '').toLowerCase().includes(q) ||
+      (d.inhoud || '').toLowerCase().includes(q) ||
+      (d.locKamer || '').toLowerCase().includes(q) ||
+      (d.locCel || '').toLowerCase().includes(q);
+  }).slice().sort(function(a, b) { return b.nr - a.nr; });
+
+  if (!filtered.length) {
+    lijst.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  lijst.innerHTML = filtered.map(function(d) {
+    var celLeesbaar = d.locCel ? d.locCel.replace(/^([A-Z]+\d+)-(\d+)$/, function(m,c,l){return c + ' laag ' + l;}) : '';
+    var locBadge = d.locCel
+      ? '<span class="loc-badge">' + d.locKamer + ' · ' + celLeesbaar + '</span>'
+      : '<span class="no-loc-badge">niet gescand</span>';
+    return '<div class="doos-item" onclick="openDoosModal(' + d.nr + ')">' +
+      '<div class="doos-nr">' + nrStr(d.nr) + '</div>' +
+      '<div class="doos-meta">' +
+      '<div class="doos-kamers">' + (d.uit || '?') + ' → ' + (d.naar || '?') + '</div>' +
+      '<div class="doos-sub">' + (d.inhoud || '—').substring(0, 40) + '</div>' +
+      '</div>' + locBadge + '</div>';
+  }).join('');
+}
+
+function renderDoosDetail(d) {
+  var kamer = d.locKamer ? state.kamers.find(function(k) { return k.naam === d.locKamer; }) : null;
+  var gridHtml = '';
+  if (kamer && d.locCel) {
+    var bezet = kamer.bezet || {};
+    gridHtml = '<div class="card"><div class="card-title">' + kamer.naam + ' — positie</div>' +
+      '<div class="overview-grid-wrap"><div style="display:inline-grid; gap:3px; grid-template-columns:repeat(' + kamer.cols + ',1fr);">';
+    for (var r = 0; r < kamer.rows; r++) {
+      for (var c = 0; c < kamer.cols; c++) {
+        var cel = celNaam(c, r);
+        var celBase = (d.locCel||'').replace(/^([A-Z]+\d+)-\d+$/, '$1');
+        var isHit = cel === celBase || cel === d.locCel;
+        gridHtml += '<div class="overview-cell ' + (isHit ? 'hit' : 'leeg') + '">' +
+          '<span class="oc-coord">' + cel + '</span>' +
+          (isHit ? '<span class="oc-nr">' + nrStr(d.nr) + '</span>' : '') + '</div>';
+      }
+    }
+    gridHtml += '</div></div></div>';
+  }
+
+  var locHtml = d.locCel
+    ? '<div class="result-card">' +
+      '<div class="result-nr">' + nrStr(d.nr) + '</div>' +
+      '<div class="result-row"><span class="result-lbl">Kamer</span><span class="result-val">' + d.locKamer + '</span></div>' +
+      '<div class="result-row"><span class="result-lbl">Positie</span><span class="result-pos">' + (d.locCel||'').replace(/([A-Z]+\d+)-(\d+)/, function(m,c,l){return c + ' laag ' + l;}) + '</span></div>' +
+      (d.locTijdstip ? '<div class="result-row"><span class="result-lbl">Geplaatst</span><span class="result-val">' + d.locTijdstip + '</span></div>' : '') +
+      '</div>'
+    : '<div class="not-found">⚠ Doos ' + nrStr(d.nr) + ' is nog niet ingescand op locatie.</div>';
+
+  return locHtml + gridHtml +
+    '<div class="card"><div class="card-title">Doosinfo</div>' +
+    '<div class="result-row"><span class="result-lbl">Van</span><span class="result-val">' + (d.uit || '—') + '</span></div>' +
+    '<div class="result-row"><span class="result-lbl">Naar</span><span class="result-val">' + (d.naar || '—') + '</span></div>' +
+    (d.medium ? '<div class="result-row"><span class="result-lbl">Opslagmedium</span><span class="result-val">' + d.medium + '</span></div>' : '') +
+    '<div class="result-row"><span class="result-lbl">Inhoud</span><span class="result-val">' + (d.inhoud || '—') + '</span></div>' +
+    (d.inpakker ? '<div class="result-row"><span class="result-lbl">Ingepakt door</span><span class="result-val">' + d.inpakker + '</span></div>' : '') +
+    '</div>';
+}
+
+function openDoosModal(nr) {
+  var d = state.dozen.find(function(x) { return x.nr === nr; });
+  if (!d) return;
+  document.getElementById('modal-title').textContent = nrStr(nr);
+  document.getElementById('modal-body').innerHTML = renderDoosDetail(d) +
+    '<button class="btn-primary" style="margin:8px 0;" onclick="closeModalDirect(); showScreen(\'plaatsen\'); setDoosVanHash(' + nr + ');">Doos plaatsen</button>';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
+function closeModalDirect() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+// ============================================================
+// Ingebouwde QR-code generator — geen externe library nodig
+// Gebaseerd op Nayuki QR Code generator (MIT License)
+// ============================================================
+var QRGen = (function() {
+  function QrCode(ver, ecl, data, mask) {
+    this.version = ver; this.size = ver * 4 + 17;
+    this.modules = []; this.isFunction = [];
+    for (var i = 0; i < this.size; i++) {
+      this.modules.push(new Array(this.size).fill(false));
+      this.isFunction.push(new Array(this.size).fill(false));
+    }
+    this._drawFunctionPatterns();
+    var cw = this._addEccAndInterleave(data, ver, ecl);
+    this._drawCodewords(cw);
+    this._applyMask(mask);
+    this._drawFormatBits(ecl, mask);
+  }
+  QrCode.prototype.getModule = function(x, y) {
+    return x >= 0 && x < this.size && y >= 0 && y < this.size && this.modules[y][x];
+  };
+  QrCode.prototype._setFunctionModule = function(x, y, d) {
+    this.modules[y][x] = d; this.isFunction[y][x] = true;
+  };
+  QrCode.prototype._drawFunctionPatterns = function() {
+    var sz = this.size;
+    for (var i = 0; i < sz; i++) { this._setFunctionModule(6, i, i%2===0); this._setFunctionModule(i, 6, i%2===0); }
+    this._drawFinderPattern(3,3); this._drawFinderPattern(sz-4,3); this._drawFinderPattern(3,sz-4);
+    var ap = this._getAlignmentPatternPositions();
+    for (var ai = 0; ai < ap.length; ai++) for (var aj = 0; aj < ap.length; aj++) {
+      var r = ap[ai], c = ap[aj];
+      if (!((r===6&&c===6)||(r===6&&c===sz-7)||(r===sz-7&&c===6))) this._drawAlignmentPattern(r,c);
+    }
+    this._drawFormatBits(0,0); this._drawVersion();
+  };
+  QrCode.prototype._drawFinderPattern = function(cx, cy) {
+    for (var dy=-4;dy<=4;dy++) for (var dx=-4;dx<=4;dx++) {
+      var d=Math.max(Math.abs(dx),Math.abs(dy)), x=cx+dx, y=cy+dy;
+      if (x>=0&&x<this.size&&y>=0&&y<this.size) this._setFunctionModule(x,y,d!==2&&d!==4);
+    }
+  };
+  QrCode.prototype._drawAlignmentPattern = function(cx,cy) {
+    for (var dy=-2;dy<=2;dy++) for (var dx=-2;dx<=2;dx++)
+      this._setFunctionModule(cx+dx,cy+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1);
+  };
+  QrCode.prototype._drawFormatBits = function(ecl, mask) {
+    var data=(ecl<<3)|mask, rem=data;
+    for (var i=0;i<10;i++) rem=(rem<<1)^((rem>>>9)*0x537);
+    var bits=((data<<10)|rem)^0x5412, sz=this.size;
+    for (var i=0;i<=5;i++) this._setFunctionModule(8,i,((bits>>>i)&1)!==0);
+    this._setFunctionModule(8,7,((bits>>>6)&1)!==0); this._setFunctionModule(8,8,((bits>>>7)&1)!==0);
+    this._setFunctionModule(7,8,((bits>>>8)&1)!==0);
+    for (var i=9;i<15;i++) this._setFunctionModule(14-i,8,((bits>>>i)&1)!==0);
+    for (var i=0;i<=7;i++) this._setFunctionModule(sz-1-i,8,((bits>>>i)&1)!==0);
+    for (var i=8;i<15;i++) this._setFunctionModule(8,sz-15+i,((bits>>>i)&1)!==0);
+    this._setFunctionModule(8,sz-8,true);
+  };
+  QrCode.prototype._drawVersion = function() {
+    if (this.version<7) return;
+    var rem=this.version;
+    for (var i=0;i<12;i++) rem=(rem<<1)^((rem>>>11)*0x1F25);
+    var bits=(this.version<<12)|rem, sz=this.size;
+    for (var i=0;i<18;i++) {
+      var a=sz-11+(i%3),b=Math.floor(i/3);
+      this._setFunctionModule(a,b,((bits>>>i)&1)!==0);
+      this._setFunctionModule(b,a,((bits>>>i)&1)!==0);
+    }
+  };
+  QrCode.prototype._getAlignmentPatternPositions = function() {
+    var ver=this.version;
+    if (ver===1) return [];
+    var numAlign=Math.floor(ver/7)+2;
+    var step=(ver===32)?26:Math.ceil((ver*4+4)/(numAlign*2-2))*2;
+    var result=[6];
+    for (var pos=this.size-7;result.length<numAlign;pos-=step) result.splice(1,0,pos);
+    return result;
+  };
+  QrCode.prototype._drawCodewords = function(data) {
+    var i=0,sz=this.size;
+    for (var right=sz-1;right>=1;right-=2) {
+      if (right===6) right=5;
+      for (var vert=0;vert<sz;vert++) for (var j=0;j<2;j++) {
+        var x=right-j, upward=((right+1)&2)===0, y=upward?sz-1-vert:vert;
+        if (!this.isFunction[y][x]&&i<data.length*8) {
+          this.modules[y][x]=((data[Math.floor(i/8)]>>>(7-i%8))&1)!==0; i++;
+        }
+      }
+    }
+  };
+  QrCode.prototype._applyMask = function(mask) {
+    var sz=this.size;
+    for (var y=0;y<sz;y++) for (var x=0;x<sz;x++) if (!this.isFunction[y][x]) {
+      var inv;
+      switch(mask) {
+        case 0:inv=(x+y)%2===0;break; case 1:inv=y%2===0;break;
+        case 2:inv=x%3===0;break; case 3:inv=(x+y)%3===0;break;
+        case 4:inv=(Math.floor(x/3)+Math.floor(y/2))%2===0;break;
+        case 5:inv=x*y%2+x*y%3===0;break;
+        case 6:inv=(x*y%2+x*y%3)%2===0;break;
+        case 7:inv=((x+y)%2+x*y%3)%2===0;break;
+      }
+      this.modules[y][x]=this.modules[y][x]!==inv;
+    }
+  };
+  QrCode.prototype._addEccAndInterleave = function(data,ver,ecl) {
+    var numBlocks=NUM_ECC_BLOCKS[ecl][ver], blockEccLen=ECC_PER_BLOCK[ecl][ver];
+    var totalCw=TOTAL_CW[ver], dataCap=totalCw-blockEccLen*numBlocks;
+    var result=data.slice();
+    while(result.length<dataCap) result.push(result.length%2===0?0xEC:0x11);
+    var shortLen=Math.floor(dataCap/numBlocks), numLong=dataCap%numBlocks;
+    var blocks=[], k=0;
+    for (var i=0;i<numBlocks;i++) {
+      var dl=shortLen+(i>=numBlocks-numLong?1:0);
+      var block=result.slice(k,k+dl); k+=dl;
+      var ecc=_rsDivisor(blockEccLen);
+      blocks.push(block.concat(_rsRemainder(block,ecc)));
+    }
+    var out=[];
+    for (var i=0;i<blocks[0].length;i++) for (var j=0;j<blocks.length;j++) if (i<blocks[j].length) out.push(blocks[j][i]);
+    return out;
+  };
+  function _rsDivisor(deg) {
+    var r=new Array(deg).fill(0); r[deg-1]=1; var root=1;
+    for (var i=0;i<deg;i++) {
+      for (var j=0;j<r.length;j++) { r[j]=_rsMul(r[j],root); if (j+1<r.length) r[j]^=r[j+1]; }
+      root=_rsMul(root,0x02);
+    }
+    return r;
+  }
+  function _rsRemainder(data,div) {
+    var r=new Array(div.length).fill(0);
+    for (var i=0;i<data.length;i++) { var f=data[i]^r.shift(); r.push(0); for (var j=0;j<div.length;j++) r[j]^=_rsMul(div[j],f); }
+    return r;
+  }
+  function _rsMul(x,y) {
+    var z=0;
+    for (var i=7;i>=0;i--) { z=(z<<1)^((z>>>7)*0x11D); z^=((y>>>i)&1)*x; }
+    return z;
+  }
+  var NUM_ECC_BLOCKS=[null,
+    [null,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49],
+    [null,1,1,1,2,4,4,6,6,8,8,8,10,12,16,12,17,16,18,21,20,23,23,25,27,29,34,34,35,38,40,43,45,48,51,53,56,59,62,65,68],
+    [null,1,1,2,4,4,6,8,8,10,12,11,11,16,16,18,16,19,21,25,25,25,34,30,32,35,37,40,42,45,48,51,54,57,60,63,66,70,74,77,81],
+    [null,1,1,4,4,8,10,14,12,16,12,12,20,24,20,19,26,33,27,34,34,35,46,39,43,46,50,54,58,62,67,71,75,80,85,89,94,98,103,109,116]];
+  var ECC_PER_BLOCK=[null,
+    [null,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+    [null,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28],
+    [null,13,22,18,26,18,24,18,22,20,24,28,26,24,20,30,24,28,28,26,30,28,30,30,30,30,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+    [null,17,28,22,16,22,28,26,26,24,28,24,28,22,24,24,30,28,28,26,28,30,24,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30,30]];
+  var TOTAL_CW=[null,26,44,70,100,134,172,196,242,292,346,404,466,532,581,655,733,815,901,991,1085,1156,1258,1364,1474,1588,1706,1828,1921,2051,2185,2323,2465,2611,2761,2876,3034,3196,3362,3532,3706];
+  function encodeText(text) {
+    var bytes=[];
+    for (var i=0;i<text.length;i++) {
+      var c=text.charCodeAt(i);
+      if (c<128) { bytes.push(c); }
+      else if (c<0x800) { bytes.push((c>>6)|0xC0); bytes.push((c&0x3F)|0x80); }
+      else { bytes.push((c>>12)|0xE0); bytes.push(((c>>6)&0x3F)|0x80); bytes.push((c&0x3F)|0x80); }
+    }
+    var caps=[null,19,34,55,80,108,136,156,194,232,274,324,370,428,461,523,589,647,721,795,861,932,1006,1094,1174,1276,1370,1468,1531,1631,1735,1843,1955,2071,2191,2306,2434,2566,2702,2812,2956];
+    var ver=1;
+    while (ver<40&&caps[ver]<bytes.length+4) ver++;
+    var bb=[];
+    bb.push(0,1,0,0);
+    var ccb=ver<10?8:16;
+    for (var i=ccb-1;i>=0;i--) bb.push((bytes.length>>>i)&1);
+    for (var i=0;i<bytes.length;i++) for (var j=7;j>=0;j--) bb.push((bytes[i]>>>j)&1);
+    for (var i=0;i<4&&bb.length<caps[ver]*8;i++) bb.push(0);
+    while (bb.length%8!==0) bb.push(0);
+    var db=[];
+    for (var i=0;i<bb.length;i+=8) { var b=0; for (var j=0;j<8;j++) b=(b<<1)|bb[i+j]; db.push(b); }
+    return new QrCode(ver,1,db,2);
+  }
+  return { encode: encodeText };
+})();
+
+// ---- Start ----
+window.onload = function() {
+  updateGridPreview();
+  init();
+};
+</script>
+</body>
+</html>
