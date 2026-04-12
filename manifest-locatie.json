@@ -1,0 +1,14 @@
+{
+  "name": "Doos locatie",
+  "short_name": "Doos locatie",
+  "description": "Dozen plaatsen en terugvinden",
+  "start_url": "/verhuisapp/locatie.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon-doos-locatie-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-doos-locatie-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
