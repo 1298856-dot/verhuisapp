@@ -138,7 +138,7 @@ select:focus,input:focus{outline:none;border-color:var(--accent);}
 .laag-btn{padding:5px 14px;border-radius:6px;border:2px solid var(--border);background:var(--white);color:var(--text);font-weight:700;font-size:13px;cursor:pointer;}
 .laag-btn.active{border-color:var(--navy);background:var(--navy);color:white;}
 /* Print */
-@media print{body>*:not(#print-area){display:none !important;}#print-area{display:block !important;}}
+@media print{body>*{display:none !important;}#print-area{display:block !important;}#pre-print-bar{display:none !important;}}
 #print-area{display:none;}
 .print-page{width:210mm;min-height:297mm;padding:16mm 18mm 14mm;font-family:Arial,sans-serif;color:#000;page-break-after:always;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;}
 @page{size:A4;margin:0;}
@@ -1610,82 +1610,89 @@ function printKamerLabel(kamerId){
   if(!kamer){alert('Kamer niet gevonden.');return;}
 
   var qrCanvas=maakQRCanvas('https://1298856-dot.github.io/verhuisapp/locatie.html#kamer='+kamer.id, 8);
-
-  var naamFs=72;
-  var testDiv=document.createElement('div');
-  testDiv.style.cssText='position:absolute;visibility:hidden;font-family:Arial;font-weight:900;white-space:nowrap;';
-  document.body.appendChild(testDiv);
-  while(naamFs>20){
-    testDiv.style.fontSize=naamFs+'pt';
-    testDiv.textContent=kamer.naam;
-    if(testDiv.offsetWidth<=600) break;
-    naamFs-=4;
-  }
-  document.body.removeChild(testDiv);
-
-  var locRegel=(kamer.verdieping||kamer.plaats)?
-    '<div style="font-size:13pt;color:#555;text-align:center;margin-bottom:10mm;">'+
-    [kamer.verdieping,kamer.plaats].filter(Boolean).join(' \u2014 ')+'</div>':'';
+  var qrDataUrl=qrCanvas.toDataURL('image/png');
 
   var plattegrondDataUrl=null;
   if(isMac()){try{plattegrondDataUrl=localStorage.getItem('plattegrond-'+kamer.id);}catch(e){}}
 
+  // Auto-schaal naam — stap van 4pt, max 56pt
+  var naamFs=56;
+  var testDiv=document.createElement('div');
+  testDiv.style.cssText='position:absolute;visibility:hidden;font-family:Arial;font-weight:900;font-size:56pt;white-space:nowrap;';
+  testDiv.textContent=kamer.naam;
+  document.body.appendChild(testDiv);
+  while(naamFs>16&&testDiv.offsetWidth>460){naamFs-=4;testDiv.style.fontSize=naamFs+'pt';}
+  document.body.removeChild(testDiv);
+
+  var locRegel=(kamer.verdieping||kamer.plaats)?
+    '<p style="margin:0 0 8mm;font-size:13pt;font-weight:700;color:#000;text-align:center;">'+
+    [kamer.verdieping,kamer.plaats].filter(Boolean).join(' — ')+'</p>':'';
+
   var plattegrondHtml=plattegrondDataUrl?
     '<div style="text-align:center;margin-top:8mm;">'+
-      '<div style="font-size:9pt;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5pt;margin-bottom:4mm;">Plattegrond</div>'+
-      '<img src="'+plattegrondDataUrl+'" style="max-width:170mm;max-height:110mm;object-fit:contain;border:1pt solid #ddd;border-radius:4pt;">'+
+      '<p style="margin:0 0 4mm;font-size:9pt;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:1pt;">Plattegrond</p>'+
+      '<img src="'+plattegrondDataUrl+'" style="max-width:170mm;max-height:100mm;object-fit:contain;border:1pt solid #000;">'+
     '</div>':
-    '<div style="margin:8mm auto 0;width:150mm;border:1.5pt dashed #ccc;border-radius:4pt;padding:5mm;min-height:55mm;">'+
-      '<div style="font-size:8pt;color:#ccc;font-style:italic;">Plattegrond / schets</div></div>';
+    '<div style="margin:8mm auto 0;width:150mm;border:2pt dashed #999;padding:5mm;min-height:45mm;">'+
+      '<p style="margin:0;font-size:9pt;font-weight:700;color:#000;font-style:italic;">Plattegrond / schets</p></div>';
 
-  var html=
-    '<div class="print-page" style="display:flex;flex-direction:column;align-items:center;padding:18mm 18mm 14mm;">'+
-    '<div style="font-size:'+naamFs+'pt;font-weight:900;color:#1a1a2e;text-align:center;line-height:1.05;'+
-      'word-break:break-word;width:100%;margin-bottom:4mm;">'+kamer.naam+'</div>'+
-    locRegel+
-    '<div style="width:70%;height:3pt;background:#1a1a2e;border-radius:2pt;margin-bottom:10mm;"></div>'+
-    '<div style="text-align:center;margin-bottom:6mm;">'+
-      '<canvas id="print-kamer-qr" style="width:70mm;height:70mm;"></canvas>'+
-      '<div style="font-size:10pt;color:#555;margin-top:4mm;">Scan = check-in kamer</div>'+
+  var pageHtml='<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<style>'+
+      '*{margin:0;padding:0;box-sizing:border-box;}'+
+      'html,body{width:210mm;height:297mm;overflow:hidden;}'+
+      '@page{size:A4 portrait;margin:14mm 16mm 12mm;}'+
+      'body{font-family:Arial,sans-serif;color:#000;}'+
+    '</style></head><body>'+
+    '<div style="display:flex;flex-direction:column;align-items:center;width:100%;">'+
+      '<h1 style="font-size:'+naamFs+'pt;font-weight:900;color:#000;text-align:center;line-height:1.05;word-break:break-word;margin:0 0 4mm;width:100%;">'+kamer.naam+'</h1>'+
+      locRegel+
+      '<div style="width:60%;height:3pt;background:#000;margin:0 0 10mm;"></div>'+
+      '<div style="text-align:center;margin-bottom:6mm;">'+
+        '<img src="'+qrDataUrl+'" style="width:65mm;height:65mm;">'+
+        '<p style="margin:4mm 0 0;font-size:10pt;font-weight:700;color:#000;">Scan = check-in kamer</p>'+
+      '</div>'+
+      plattegrondHtml+
+      '<div style="position:fixed;bottom:10mm;left:16mm;right:16mm;border-top:0.5pt solid #ccc;padding-top:3mm;display:flex;justify-content:space-between;">'+
+        '<span style="font-size:8pt;font-weight:700;color:#000;">Verhuisapp — Doos locatie</span>'+
+        '<span style="font-size:8pt;font-weight:700;color:#000;">'+tijdstipNu().split(' ')[0]+'</span>'+
+      '</div>'+
     '</div>'+
-    plattegrondHtml+
-    '<div style="margin-top:auto;padding-top:6mm;width:100%;border-top:0.5pt solid #ddd;'+
-      'display:flex;justify-content:space-between;font-size:8pt;color:#aaa;">'+
-      '<span>Verhuisapp \u2014 Doos locatie</span>'+
-      '<span>'+tijdstipNu().split(' ')[0]+'</span>'+
-    '</div>'+
-    '</div>';
+    '</body></html>';
 
-  document.getElementById('print-area').innerHTML=html;
-
-  setTimeout(function(){
-    var el=document.getElementById('print-kamer-qr');
-    if(el){el.width=qrCanvas.width;el.height=qrCanvas.height;el.getContext('2d').drawImage(qrCanvas,0,0);}
-    if(isMac()){
-      var bar=document.getElementById('pre-print-bar');
-      if(bar) bar.remove();
-      var noPlatt=!plattegrondDataUrl;
-      var kId=kamer.id;
-      var barHtml='<div id="pre-print-bar" style="position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;'+
-        'color:white;padding:14px 20px;display:flex;align-items:center;gap:12px;z-index:9999;">'+
-        (noPlatt?
-          '<input type="file" id="upload-plattegrond" accept="image/*" style="display:none;" onchange="uploadPlattegrond(\''+kId+'\')">'+
-          '<button onclick="document.getElementById(\'upload-plattegrond\').click()" style="padding:10px 18px;background:rgba(255,255,255,.15);'+
-          'color:white;border:1.5px solid rgba(255,255,255,.4);border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap;">Plattegrond uploaden</button>':
-          '<span style="font-size:13px;color:#9fe1cb;">\u2713 Plattegrond opgeslagen</span>'+
-          '<input type="file" id="upload-plattegrond" accept="image/*" style="display:none;" onchange="uploadPlattegrond(\''+kId+'\')">'+
-          '<button onclick="document.getElementById(\'upload-plattegrond\').click()" style="padding:8px 14px;'+
-          'background:rgba(255,255,255,.1);color:white;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:13px;cursor:pointer;">Vervangen</button>'
-        )+
-        '<button onclick="document.getElementById(\'pre-print-bar\').style.display=\'none\';window.print();" '+
-        'style="margin-left:auto;padding:10px 24px;background:white;color:#1a1a2e;border:none;border-radius:8px;'+
-        'font-size:15px;font-weight:700;cursor:pointer;">Printen</button>'+
-        '</div>';
-      document.body.insertAdjacentHTML('beforeend', barHtml);
-    } else {
-      setTimeout(function(){window.print();},300);
-    }
-  },100);
+  if(isMac()){
+    var bar=document.getElementById('pre-print-bar');
+    if(bar) bar.remove();
+    var noPlatt=!plattegrondDataUrl;
+    var kId=kamer.id;
+    var stored_pageHtml=pageHtml; // closure
+    var barHtml='<div id="pre-print-bar" style="position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;'+
+      'color:white;padding:14px 20px;display:flex;align-items:center;gap:12px;z-index:9999;">'+
+      (noPlatt?
+        '<input type="file" id="upload-plattegrond" accept="image/*" style="display:none;" onchange="uploadPlattegrond(\''+kId+'\')">'+
+        '<button onclick="document.getElementById(\'upload-plattegrond\').click()" style="padding:10px 18px;background:rgba(255,255,255,.15);'+
+        'color:white;border:1.5px solid rgba(255,255,255,.4);border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap;">Plattegrond uploaden</button>':
+        '<span style="font-size:13px;color:#9fe1cb;">✓ Plattegrond opgeslagen</span>'+
+        '<input type="file" id="upload-plattegrond" accept="image/*" style="display:none;" onchange="uploadPlattegrond(\''+kId+'\')">'+
+        '<button onclick="document.getElementById(\'upload-plattegrond\').click()" style="padding:8px 14px;'+
+        'background:rgba(255,255,255,.1);color:white;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:13px;cursor:pointer;">Vervangen</button>'
+      )+
+      '<button id="btn-do-print" style="margin-left:auto;padding:10px 24px;background:white;color:#1a1a2e;border:none;border-radius:8px;'+
+      'font-size:15px;font-weight:700;cursor:pointer;">Printen</button>'+
+      '</div>';
+    document.body.insertAdjacentHTML('beforeend', barHtml);
+    document.getElementById('btn-do-print').onclick=function(){
+      document.getElementById('pre-print-bar').remove();
+      var w=window.open('','_blank','width=800,height=1100');
+      w.document.write(pageHtml);
+      w.document.close();
+      setTimeout(function(){w.print();},400);
+    };
+  } else {
+    var w=window.open('','_blank');
+    w.document.write(pageHtml);
+    w.document.close();
+    setTimeout(function(){w.print();},400);
+  }
 }
 
 
@@ -1694,45 +1701,53 @@ function printOpslagLabel(opslagId){
   if(!opslag) return;
   var kamer=state.kamers.find(function(k){return k.id===opslag.kamerId;});
   var qrCanvas=maakQRCanvas('https://1298856-dot.github.io/verhuisapp/locatie.html#opslagdeel='+opslag.id, 8);
+  var qrDataUrl=qrCanvas.toDataURL('image/png');
 
-  var naamFs=72;
+  // Auto-schaal naam
+  var naamFs=56;
   var testDiv=document.createElement('div');
-  testDiv.style.cssText='position:absolute;visibility:hidden;font-family:Arial;font-weight:900;white-space:nowrap;';
+  testDiv.style.cssText='position:absolute;visibility:hidden;font-family:Arial;font-weight:900;font-size:56pt;white-space:nowrap;';
+  testDiv.textContent=opslag.naam;
   document.body.appendChild(testDiv);
-  while(naamFs>20){
-    testDiv.style.fontSize=naamFs+'pt';
-    testDiv.textContent=opslag.naam;
-    if(testDiv.offsetWidth<=600) break;
-    naamFs-=4;
-  }
+  while(naamFs>16&&testDiv.offsetWidth>460){naamFs-=4;testDiv.style.fontSize=naamFs+'pt';}
   document.body.removeChild(testDiv);
 
   var kNaam=kamer?kamer.naam:'';
-  var html=
-    '<div class="print-page" style="display:flex;flex-direction:column;align-items:center;padding:18mm 18mm 14mm;">'+
-    (kNaam?'<div style="font-size:11pt;color:#888;text-align:center;margin-bottom:3mm;letter-spacing:0.3pt;">'+kNaam+'</div>':'')+
-    '<div style="font-size:'+naamFs+'pt;font-weight:900;color:#1a1a2e;text-align:center;line-height:1.05;'+
-      'word-break:break-word;width:100%;margin-bottom:6mm;">'+opslag.naam+'</div>'+
-    '<div style="width:70%;height:3pt;background:#1a1a2e;border-radius:2pt;margin-bottom:10mm;"></div>'+
-    '<div style="text-align:center;margin-bottom:8mm;">'+
-      '<canvas id="opslag-print-qr" style="width:70mm;height:70mm;"></canvas>'+
-      '<div style="font-size:10pt;color:#555;margin-top:4mm;">Scan = check-in opslagdeel</div>'+
-    '</div>'+
-    '<div style="width:150mm;border:1.5pt dashed #ccc;border-radius:4pt;padding:6mm;min-height:70mm;">'+
-      '<div style="font-size:8pt;color:#ccc;font-style:italic;">Schets / opmerkingen</div></div>'+
-    '<div style="margin-top:auto;padding-top:6mm;width:100%;border-top:0.5pt solid #ddd;'+
-      'display:flex;justify-content:space-between;font-size:8pt;color:#aaa;">'+
-      '<span>Verhuisapp \u2014 '+(kNaam?kNaam+' \u203a ':'')+opslag.naam+'</span>'+
-      '<span>'+tijdstipNu().split(' ')[0]+'</span>'+
-    '</div>'+
-    '</div>';
 
-  document.getElementById('print-area').innerHTML=html;
-  setTimeout(function(){
-    var el=document.getElementById('opslag-print-qr');
-    if(el){el.width=qrCanvas.width;el.height=qrCanvas.height;el.getContext('2d').drawImage(qrCanvas,0,0);}
-    setTimeout(function(){window.print();},300);
-  },100);
+  var pageHtml='<!DOCTYPE html><html><head><meta charset="UTF-8">'+
+    '<style>'+
+      '*{margin:0;padding:0;box-sizing:border-box;}'+
+      'html,body{width:210mm;height:297mm;overflow:hidden;}'+
+      '@page{size:A4 portrait;margin:14mm 16mm 12mm;}'+
+      'body{font-family:Arial,sans-serif;color:#000;}'+
+    '</style></head><body>'+
+    '<div style="display:flex;flex-direction:column;align-items:center;width:100%;">'+
+      // Kamer-naam: zwart, kleiner, kader "deel van"
+      (kNaam?
+        '<div style="margin-bottom:4mm;padding:3mm 8mm;border:2pt solid #000;border-radius:4pt;text-align:center;">'+
+          '<p style="font-size:8pt;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:1pt;margin:0 0 1mm;">Onderdeel van kamer</p>'+
+          '<p style="font-size:14pt;font-weight:900;color:#000;margin:0;">'+kNaam+'</p>'+
+        '</div>':'')+
+      // Opslagdeel naam: blauw, groot
+      '<h1 style="font-size:'+naamFs+'pt;font-weight:900;color:#003580;text-align:center;line-height:1.05;word-break:break-word;margin:0 0 6mm;width:100%;">'+opslag.naam+'</h1>'+
+      '<div style="width:60%;height:3pt;background:#003580;margin:0 0 10mm;"></div>'+
+      '<div style="text-align:center;margin-bottom:8mm;">'+
+        '<img src="'+qrDataUrl+'" style="width:65mm;height:65mm;">'+
+        '<p style="margin:4mm 0 0;font-size:10pt;font-weight:700;color:#000;">Scan = check-in opslagdeel</p>'+
+      '</div>'+
+      '<div style="width:150mm;border:2pt dashed #999;padding:6mm;min-height:60mm;">'+
+        '<p style="margin:0;font-size:9pt;font-weight:700;color:#000;font-style:italic;">Schets / opmerkingen</p></div>'+
+      '<div style="position:fixed;bottom:10mm;left:16mm;right:16mm;border-top:0.5pt solid #ccc;padding-top:3mm;display:flex;justify-content:space-between;">'+
+        '<span style="font-size:8pt;font-weight:700;color:#000;">Verhuisapp — '+(kNaam?kNaam+' › ':'')+opslag.naam+'</span>'+
+        '<span style="font-size:8pt;font-weight:700;color:#000;">'+tijdstipNu().split(' ')[0]+'</span>'+
+      '</div>'+
+    '</div>'+
+    '</body></html>';
+
+  var w=window.open('','_blank','width=800,height=1100');
+  w.document.write(pageHtml);
+  w.document.close();
+  setTimeout(function(){w.print();},400);
 }
 
 
